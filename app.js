@@ -1,23 +1,172 @@
 'use strict';
 
 // ─────────────────────────────────────────────
+// i18n
+// ─────────────────────────────────────────────
+const TRANSLATIONS = {
+  ru: {
+    tagline:            'Зашифрованная P2P передача файлов',
+    connection:         'Соединение',
+    file_transfer:      'Передача файлов',
+    history:            'История передач',
+    stat_session:       'Сессия',
+    stat_transferred:   'Передано',
+    stat_ping:          'Пинг',
+    stat_quality:       'Качество',
+    aes256:             'AES-256',
+    password_label:     'Пароль (необязательно)',
+    password_placeholder: 'Дополнительная защита',
+    create_room:        'Создать комнату',
+    join_room:          'Войти',
+    copy:               'Копировать',
+    submit:             'Подтвердить',
+    status:             'Статус:',
+    connected_for:      'Соединение:',
+    multi:              'Несколько файлов',
+    drop_text:          'Перетащите файл(ы) сюда',
+    drop_sub:           'или нажмите для выбора',
+    send:               'Отправить зашифрованно',
+    qr_hint:            'Гость сканирует QR вместо copy-paste:',
+    no_history:         'История пуста',
+    clear:              'Очистить',
+    link_expires:       'Ссылка удалится через:',
+    offer_label:        '📋 Скопируйте OFFER и отправьте гостю:',
+    answer_label:       '📋 Скопируйте ANSWER и отправьте хосту:',
+    paste_offer:        '📥 Вставьте OFFER от хоста:',
+    paste_answer:       '📥 Вставьте ANSWER от гостя:',
+    gathering:          '🔄 Сбор ICE кандидатов…',
+    connecting_state:   '🔄 Установка соединения…',
+    connected_state:    '✅ Соединение установлено!',
+    disconnected_state: '⚠️ Отключено',
+    failed_state:       '❌ Ошибка соединения',
+    receiving:          '📥 Получение файла…',
+    decrypting:         '🔓 Расшифровка…',
+    file_received:      '✅ Файл получен!',
+    sent_ok:            '✅ Отправлено',
+    ready:              '✅ Готов к передаче',
+    idle:               'Ожидание',
+    wrong_sdp:          '⚠️ Неверный формат SDP',
+    wrong_password:     '❌ Неверный пароль!',
+    sdp_error:          '❌ Ошибка SDP: ',
+    chunk_progress:     'чанков',
+    download:           '⬇ Скачать',
+    sent_badge:         'Отправлен',
+    recv_badge:         'Получен',
+    decrypting_chunks:  'Расшифровка чанков…',
+    restarting_ice:     '🔄 Перезапуск ICE…',
+  },
+  en: {
+    tagline:            'Encrypted browser-to-browser file transfer',
+    connection:         'Connection',
+    file_transfer:      'File Transfer',
+    history:            'Transfer History',
+    stat_session:       'Session',
+    stat_transferred:   'Transferred',
+    stat_ping:          'Ping',
+    stat_quality:       'Quality',
+    aes256:             'AES-256',
+    password_label:     'Password (optional)',
+    password_placeholder: 'Extra protection',
+    create_room:        'Create Room',
+    join_room:          'Join Room',
+    copy:               'Copy',
+    submit:             'Submit',
+    status:             'Status:',
+    connected_for:      'Connected for:',
+    multi:              'Multiple files',
+    drop_text:          'Drag & Drop file(s) here',
+    drop_sub:           'or click to select',
+    send:               'Send Encrypted',
+    qr_hint:            'Guest can scan QR instead of copy-paste:',
+    no_history:         'No history yet',
+    clear:              'Clear',
+    link_expires:       'Link expires in:',
+    offer_label:        '📋 Copy OFFER and send to guest:',
+    answer_label:       '📋 Copy ANSWER and send to host:',
+    paste_offer:        '📥 Paste OFFER from host:',
+    paste_answer:       '📥 Paste ANSWER from guest:',
+    gathering:          '🔄 Gathering ICE candidates…',
+    connecting_state:   '🔄 Establishing connection…',
+    connected_state:    '✅ Connected!',
+    disconnected_state: '⚠️ Disconnected',
+    failed_state:       '❌ Connection failed',
+    receiving:          '📥 Receiving file…',
+    decrypting:         '🔓 Decrypting…',
+    file_received:      '✅ File received!',
+    sent_ok:            '✅ Sent',
+    ready:              '✅ Ready to transfer',
+    idle:               'Idle',
+    wrong_sdp:          '⚠️ Invalid SDP format',
+    wrong_password:     '❌ Wrong password!',
+    sdp_error:          '❌ SDP error: ',
+    chunk_progress:     'chunks',
+    download:           '⬇ Download',
+    sent_badge:         'Sent',
+    recv_badge:         'Received',
+    decrypting_chunks:  'Decrypting chunks…',
+    restarting_ice:     '🔄 Restarting ICE…',
+  }
+};
+
+let lang = 'ru';
+
+function t(key) {
+  return TRANSLATIONS[lang][key] || key;
+}
+
+function applyTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    el.textContent = t(key);
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+}
+
+// ─────────────────────────────────────────────
 // DOM
 // ─────────────────────────────────────────────
-const createRoomBtn = document.getElementById('createRoomBtn');
-const joinRoomBtn   = document.getElementById('joinRoomBtn');
-const statusText    = document.getElementById('statusText');
-const sdpBox        = document.getElementById('sdpBox');
-const sdpLabel      = document.getElementById('sdpLabel');
-const sdpOutput     = document.getElementById('sdpOutput');
-const copySdpBtn    = document.getElementById('copySdpBtn');
-const submitSdpBtn  = document.getElementById('submitSdpBtn');
-const dropZone      = document.getElementById('dropZone');
-const fileInput     = document.getElementById('fileInput');
-const selectedFile  = document.getElementById('selectedFile');
-const sendBtn       = document.getElementById('sendBtn');
-const progressBar   = document.getElementById('progressBar');
-const transferInfo  = document.getElementById('transferInfo');
-const downloadArea  = document.getElementById('downloadArea');
+const createRoomBtn   = document.getElementById('createRoomBtn');
+const joinRoomBtn     = document.getElementById('joinRoomBtn');
+const statusText      = document.getElementById('statusText');
+const statusDot       = document.getElementById('statusDot');
+const sdpBox          = document.getElementById('sdpBox');
+const sdpLabel        = document.getElementById('sdpLabel');
+const sdpOutput       = document.getElementById('sdpOutput');
+const copySdpBtn      = document.getElementById('copySdpBtn');
+const submitSdpBtn    = document.getElementById('submitSdpBtn');
+const dropZone        = document.getElementById('dropZone');
+const fileInput       = document.getElementById('fileInput');
+const fileList        = document.getElementById('fileList');
+const sendBtn         = document.getElementById('sendBtn');
+const pauseBtn        = document.getElementById('pauseBtn');
+const pauseIcon       = document.getElementById('pauseIcon');
+const progressSection = document.getElementById('progressSection');
+const progressBar     = document.getElementById('progressBar');
+const progressLabel   = document.getElementById('progressLabel');
+const speedLabel      = document.getElementById('speedLabel');
+const etaLabel        = document.getElementById('etaLabel');
+const transferInfo    = document.getElementById('transferInfo');
+const downloadArea    = document.getElementById('downloadArea');
+const autoDeleteRow   = document.getElementById('autoDeleteRow');
+const autoDeleteTimer = document.getElementById('autoDeleteTimer');
+const historyList     = document.getElementById('historyList');
+const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+const sessionTimeEl   = document.getElementById('sessionTime');
+const totalTransEl    = document.getElementById('totalTransferred');
+const pingValueEl     = document.getElementById('pingValue');
+const connQualityEl   = document.getElementById('connQuality');
+const connTimerRow    = document.getElementById('connTimerRow');
+const connTimerEl     = document.getElementById('connTimer');
+const themeBtn        = document.getElementById('themeBtn');
+const themeIcon       = document.getElementById('themeIcon');
+const langBtn         = document.getElementById('langBtn');
+const langLabel       = document.getElementById('langLabel');
+const passwordInput   = document.getElementById('passwordInput');
+const togglePwdBtn    = document.getElementById('togglePwdBtn');
+const qrSection       = document.getElementById('qrSection');
+const qrCodeEl        = document.getElementById('qrCode');
 
 // ─────────────────────────────────────────────
 // State
@@ -25,13 +174,30 @@ const downloadArea  = document.getElementById('downloadArea');
 let pc             = null;
 let dc             = null;
 let isHost         = false;
-let selected       = null;
+let selectedFiles  = [];  // Array of File objects
 let recvMeta       = null;
 let recvChunks     = [];
-let recvBytes      = 0;
+let sendPaused     = false;
+let sendCancelled  = false;
+let sdpMode        = null;
+
+// Stats
+let sessionStart   = Date.now();
+let connStart      = null;
+let totalBytesTransferred = 0;
+let sessionTimerID = null;
+let connTimerID    = null;
+let pingTimerID    = null;
+let lastPingTime   = 0;
+let autoDeleteID   = null;
+
+// Transfer speed tracking
+let speedSamples   = [];
+let lastOffset     = 0;
+let lastSpeedTime  = 0;
 
 // ─────────────────────────────────────────────
-// ICE Config — STUN + TURN (пробивает любой NAT)
+// ICE Config
 // ─────────────────────────────────────────────
 const RTC_CONFIG = {
   iceServers: [
@@ -55,30 +221,224 @@ const RTC_CONFIG = {
   ]
 };
 
-const CHUNK_SIZE = 16 * 1024;
+const CHUNK_SIZE    = 16 * 1024;
+const LINK_TTL_SEC  = 300; // 5 minutes
 
 // ─────────────────────────────────────────────
-// Utility
+// Utilities
 // ─────────────────────────────────────────────
-function setStatus(msg) {
+function setStatus(msg, dotClass = '') {
   statusText.textContent = msg;
+  statusDot.className    = 'status-dot ' + dotClass;
 }
 
 function formatBytes(b) {
-  if (b < 1024)       return b + ' B';
-  if (b < 1024 ** 2)  return (b / 1024).toFixed(1) + ' KB';
-  return (b / 1024 ** 2).toFixed(2) + ' MB';
+  if (b < 1024)      return b + ' B';
+  if (b < 1048576)   return (b / 1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b / 1048576).toFixed(2) + ' MB';
+  return (b / 1073741824).toFixed(2) + ' GB';
+}
+
+function formatTime(sec) {
+  const m = Math.floor(sec / 60).toString().padStart(2, '0');
+  const s = Math.floor(sec % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function fileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const map = {
+    pdf: '📄', jpg: '🖼', jpeg: '🖼', png: '🖼', gif: '🖼', webp: '🖼',
+    mp4: '🎬', mov: '🎬', avi: '🎬', mkv: '🎬',
+    mp3: '🎵', wav: '🎵', flac: '🎵',
+    zip: '📦', rar: '📦', '7z': '📦',
+    doc: '📝', docx: '📝', xls: '📊', xlsx: '📊',
+    txt: '📃', js: '💻', ts: '💻', html: '💻', css: '💻', py: '💻',
+  };
+  return map[ext] || '📁';
+}
+
+function isImageFile(name) {
+  return /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(name);
+}
+
+// ─────────────────────────────────────────────
+// Toast notifications
+// ─────────────────────────────────────────────
+function showToast(msg, type = 'info', duration = 3500) {
+  const container = document.getElementById('toastContainer');
+  const icons = { info: 'ℹ️', success: '✅', error: '❌' };
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), duration);
+}
+
+// ─────────────────────────────────────────────
+// Notification + Sound
+// ─────────────────────────────────────────────
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function sendNotification(title, body) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '🔒' });
+  }
+  if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+  playBeep();
+}
+
+function playBeep() {
+  try {
+    const ctx  = new (window.AudioContext || window.webkitAudioContext)();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type      = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.4);
+  } catch {}
+}
+
+// ─────────────────────────────────────────────
+// Session Timer
+// ─────────────────────────────────────────────
+function startSessionTimer() {
+  sessionStart = Date.now();
+  clearInterval(sessionTimerID);
+  sessionTimerID = setInterval(() => {
+    sessionTimeEl.textContent = formatTime((Date.now() - sessionStart) / 1000);
+  }, 1000);
+}
+
+function startConnTimer() {
+  connStart = Date.now();
+  connTimerRow.style.display = 'flex';
+  clearInterval(connTimerID);
+  connTimerID = setInterval(() => {
+    connTimerEl.textContent = formatTime((Date.now() - connStart) / 1000);
+  }, 1000);
+}
+
+function stopConnTimer() {
+  clearInterval(connTimerID);
+  connTimerRow.style.display = 'none';
+}
+
+// ─────────────────────────────────────────────
+// Ping / Connection Quality
+// ─────────────────────────────────────────────
+function startPingLoop() {
+  clearInterval(pingTimerID);
+  pingTimerID = setInterval(() => {
+    if (dc && dc.readyState === 'open') {
+      lastPingTime = Date.now();
+      dc.send(JSON.stringify({ type: 'ping', t: lastPingTime }));
+    }
+  }, 3000);
+}
+
+function handlePong(latency) {
+  pingValueEl.textContent = latency + 'ms';
+  let quality, color;
+  if (latency < 80)       { quality = '🟢 Отлично'; }
+  else if (latency < 200) { quality = '🟡 Хорошо';  }
+  else                    { quality = '🔴 Слабое';  }
+  connQualityEl.textContent = quality;
+}
+
+// ─────────────────────────────────────────────
+// Auto-delete download link
+// ─────────────────────────────────────────────
+function startAutoDelete(callback) {
+  let remaining = LINK_TTL_SEC;
+  autoDeleteRow.style.display = 'flex';
+  clearInterval(autoDeleteID);
+  autoDeleteID = setInterval(() => {
+    remaining--;
+    autoDeleteTimer.textContent = formatTime(remaining);
+    if (remaining <= 0) {
+      clearInterval(autoDeleteID);
+      autoDeleteRow.style.display = 'none';
+      callback();
+    }
+  }, 1000);
+}
+
+// ─────────────────────────────────────────────
+// History
+// ─────────────────────────────────────────────
+function addHistory(name, size, direction, time) {
+  const empty = historyList.querySelector('.empty-hint');
+  if (empty) empty.remove();
+
+  const item = document.createElement('div');
+  item.className = 'history-item';
+  const isSent = direction === 'sent';
+  item.innerHTML = `
+    <span class="history-icon">${fileIcon(name)}</span>
+    <div class="history-info">
+      <div class="history-name">${name}</div>
+      <div class="history-meta">${formatBytes(size)} · ${time}</div>
+    </div>
+    <span class="history-badge ${isSent ? 'badge-sent' : 'badge-received'}">
+      ${isSent ? t('sent_badge') : t('recv_badge')}
+    </span>
+  `;
+  historyList.prepend(item);
+}
+
+clearHistoryBtn.addEventListener('click', () => {
+  historyList.innerHTML = `<p class="empty-hint">${t('no_history')}</p>`;
+});
+
+// ─────────────────────────────────────────────
+// Password helpers
+// ─────────────────────────────────────────────
+togglePwdBtn.addEventListener('click', () => {
+  const isPass = passwordInput.type === 'password';
+  passwordInput.type = isPass ? 'text' : 'password';
+  togglePwdBtn.textContent = isPass ? '🙈' : '👁';
+});
+
+async function hashPassword(pwd) {
+  const enc  = new TextEncoder().encode(pwd);
+  const hash = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// ─────────────────────────────────────────────
+// QR Code
+// ─────────────────────────────────────────────
+function showQR(text) {
+  qrCodeEl.innerHTML = '';
+  if (typeof QRCode !== 'undefined' && text.length <= 2953) {
+    try {
+      new QRCode(qrCodeEl, {
+        text,
+        width:  160,
+        height: 160,
+        colorDark:  '#000000',
+        colorLight: '#ffffff',
+      });
+      qrSection.style.display = 'block';
+    } catch {}
+  }
 }
 
 // ─────────────────────────────────────────────
 // AES-GCM
 // ─────────────────────────────────────────────
 async function generateKey() {
-  return crypto.subtle.generateKey(
-    { name: 'AES-GCM', length: 256 },
-    true,
-    ['encrypt', 'decrypt']
-  );
+  return crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
 }
 
 async function exportKey(key) {
@@ -87,22 +447,12 @@ async function exportKey(key) {
 }
 
 async function importKey(arr) {
-  return crypto.subtle.importKey(
-    'raw',
-    new Uint8Array(arr),
-    { name: 'AES-GCM' },
-    false,
-    ['decrypt']
-  );
+  return crypto.subtle.importKey('raw', new Uint8Array(arr), { name: 'AES-GCM' }, false, ['decrypt']);
 }
 
 async function encryptChunk(buffer, key) {
   const iv        = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    buffer
-  );
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, buffer);
   const out = new Uint8Array(12 + encrypted.byteLength);
   out.set(iv, 0);
   out.set(new Uint8Array(encrypted), 12);
@@ -110,12 +460,10 @@ async function encryptChunk(buffer, key) {
 }
 
 async function decryptChunk(buffer, key) {
-  const iv        = buffer.slice(0, 12);
-  const encrypted = buffer.slice(12);
   return crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: new Uint8Array(iv) },
+    { name: 'AES-GCM', iv: new Uint8Array(buffer.slice(0, 12)) },
     key,
-    encrypted
+    buffer.slice(12)
   );
 }
 
@@ -124,42 +472,39 @@ async function decryptChunk(buffer, key) {
 // ─────────────────────────────────────────────
 function createPeerConnection() {
   if (pc) { pc.close(); dc = null; }
-
   pc = new RTCPeerConnection(RTC_CONFIG);
 
   pc.onicecandidate = (e) => {
-    if (e.candidate) return; // ждём конца сбора
-
+    if (e.candidate) return;
     const sdp = JSON.stringify(pc.localDescription);
     if (isHost) {
-      showSdp('📋 Скопируйте OFFER и отправьте гостю:', sdp, 'offer-ready');
+      showSdp(t('offer_label'), sdp, 'offer-ready');
+      showQR(sdp);
     } else {
-      showSdp('📋 Скопируйте ANSWER и отправьте хосту:', sdp, 'answer-ready');
+      showSdp(t('answer_label'), sdp, 'answer-ready');
     }
   };
 
   pc.oniceconnectionstatechange = () => {
     const state = pc.iceConnectionState;
-    const labels = {
-      checking:     '🔄 Проверка соединения…',
-      connected:    '✅ Connected!',
-      completed:    '✅ Connected!',
-      disconnected: '⚠️ Disconnected',
-      failed:       '❌ Connection failed — попробуйте снова',
-      closed:       '🔒 Closed'
-    };
-    if (labels[state]) setStatus(labels[state]);
-
+    if (state === 'checking')     setStatus(t('connecting_state'), 'connecting');
     if (state === 'connected' || state === 'completed') {
+      setStatus(t('connected_state'), 'connected');
       sdpBox.style.display = 'none';
-      sendBtn.disabled = !selected;
+      qrSection.style.display = 'none';
+      sendBtn.disabled = selectedFiles.length === 0;
+      startConnTimer();
+      startPingLoop();
+      showToast(t('connected_state'), 'success');
     }
-
-    // Автоперезапуск ICE при сбое
+    if (state === 'disconnected') { setStatus(t('disconnected_state'), ''); stopConnTimer(); }
     if (state === 'failed') {
+      setStatus(t('failed_state'), 'failed');
+      stopConnTimer();
       pc.restartIce();
-      setStatus('🔄 Перезапуск ICE…');
+      setStatus(t('restarting_ice'), 'connecting');
     }
+    if (state === 'closed') stopConnTimer();
   };
 
   pc.ondatachannel = (e) => setupDataChannel(e.channel);
@@ -168,24 +513,19 @@ function createPeerConnection() {
 function setupDataChannel(channel) {
   dc = channel;
   dc.binaryType = 'arraybuffer';
-
-  dc.onopen  = () => {
-    setStatus('✅ Connected! Готов к передаче.');
-    sendBtn.disabled = !selected;
+  dc.onopen    = () => {
+    setStatus(t('ready'), 'connected');
+    sendBtn.disabled = selectedFiles.length === 0;
+    requestNotificationPermission();
   };
-  dc.onclose = () => {
-    setStatus('Соединение закрыто');
-    sendBtn.disabled = true;
-  };
-  dc.onerror = (e) => setStatus('❌ Ошибка: ' + (e.error?.message || e));
+  dc.onclose   = () => { setStatus(t('idle')); sendBtn.disabled = true; stopConnTimer(); };
+  dc.onerror   = (e) => { setStatus('❌ ' + (e.error?.message || 'Error')); showToast('❌ DataChannel error', 'error'); };
   dc.onmessage = (e) => handleIncoming(e.data);
 }
 
 // ─────────────────────────────────────────────
 // SDP UI
 // ─────────────────────────────────────────────
-let sdpMode = null;
-
 function showSdp(label, value, mode) {
   sdpMode              = mode;
   sdpLabel.textContent = label;
@@ -193,17 +533,19 @@ function showSdp(label, value, mode) {
   sdpOutput.readOnly   = !!value;
   sdpBox.style.display = 'block';
   submitSdpBtn.style.display =
-    (mode === 'paste-offer' || mode === 'paste-answer') ? 'inline-block' : 'none';
+    (mode === 'paste-offer' || mode === 'paste-answer') ? 'inline-flex' : 'none';
 }
 
 copySdpBtn.addEventListener('click', async () => {
   if (!sdpOutput.value) return;
   await navigator.clipboard.writeText(sdpOutput.value);
-  copySdpBtn.textContent = '✅ Copied!';
-  setTimeout(() => (copySdpBtn.textContent = '📋 Copy'), 2000);
+  copySdpBtn.querySelector('span:last-child').textContent = '✅';
+  setTimeout(() => copySdpBtn.querySelector('span:last-child').textContent = t('copy'), 2000);
+  showToast('SDP скопирован!', 'success');
 
   if (sdpMode === 'offer-ready') {
-    showSdp('📥 Вставьте ANSWER от гостя:', '', 'paste-answer');
+    showSdp(t('paste_answer'), '', 'paste-answer');
+    qrSection.style.display = 'none';
   }
 });
 
@@ -212,26 +554,30 @@ submitSdpBtn.addEventListener('click', async () => {
   if (!raw) return;
 
   let desc;
-  try {
-    desc = JSON.parse(raw);
-  } catch {
-    alert('⚠️ Неверный формат — вставьте текст целиком.');
-    return;
-  }
+  try { desc = JSON.parse(raw); }
+  catch { showToast(t('wrong_sdp'), 'error'); return; }
 
   try {
     if (sdpMode === 'paste-offer') {
       await pc.setRemoteDescription(desc);
+
+      // Password verification if set
+      const pwdHash = passwordInput.value ? await hashPassword(passwordInput.value) : '';
+      if (desc.pwdHash && desc.pwdHash !== pwdHash) {
+        showToast(t('wrong_password'), 'error');
+        return;
+      }
+
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      setStatus('🔄 Сбор ICE кандидатов…');
+      setStatus(t('gathering'), 'connecting');
     } else if (sdpMode === 'paste-answer') {
       await pc.setRemoteDescription(desc);
-      setStatus('🔄 Установка соединения…');
+      setStatus(t('connecting_state'), 'connecting');
       sdpBox.style.display = 'none';
     }
   } catch (err) {
-    alert('❌ Ошибка SDP: ' + err.message);
+    showToast(t('sdp_error') + err.message, 'error');
   }
 });
 
@@ -246,19 +592,30 @@ createRoomBtn.addEventListener('click', async () => {
   setupDataChannel(dc);
 
   const offer = await pc.createOffer();
+
+  // Embed password hash into SDP if set
+  const pwdHash = passwordInput.value ? await hashPassword(passwordInput.value) : '';
+  const sdpWithPwd = { ...offer, pwdHash };
+
   await pc.setLocalDescription(offer);
-  setStatus('🔄 Сбор ICE кандидатов…');
+  setStatus(t('gathering'), 'connecting');
 });
 
 joinRoomBtn.addEventListener('click', () => {
   isHost = false;
   createPeerConnection();
-  showSdp('📥 Вставьте OFFER от хоста:', '', 'paste-offer');
+  showSdp(t('paste_offer'), '', 'paste-offer');
 });
 
 // ─────────────────────────────────────────────
 // File Selection
 // ─────────────────────────────────────────────
+const multiToggle = document.getElementById('multiToggle');
+
+multiToggle.addEventListener('change', () => {
+  fileInput.multiple = multiToggle.checked;
+});
+
 dropZone.addEventListener('click', () => fileInput.click());
 
 dropZone.addEventListener('dragover', (e) => {
@@ -269,92 +626,195 @@ dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover
 dropZone.addEventListener('drop', (e) => {
   e.preventDefault();
   dropZone.classList.remove('dragover');
-  if (e.dataTransfer.files[0]) pickFile(e.dataTransfer.files[0]);
+  const files = Array.from(e.dataTransfer.files);
+  if (files.length) addFiles(files);
 });
 fileInput.addEventListener('change', () => {
-  if (fileInput.files[0]) pickFile(fileInput.files[0]);
+  if (fileInput.files.length) addFiles(Array.from(fileInput.files));
+  fileInput.value = '';
 });
 
-function pickFile(file) {
-  selected = file;
-  selectedFile.textContent = `📄 ${file.name} — ${formatBytes(file.size)}`;
-  sendBtn.disabled = !(dc && dc.readyState === 'open');
+function addFiles(files) {
+  files.forEach(f => {
+    if (!multiToggle.checked) selectedFiles = [];
+    selectedFiles.push(f);
+  });
+  renderFileList();
+  sendBtn.disabled = !(dc && dc.readyState === 'open') || selectedFiles.length === 0;
+}
+
+function renderFileList() {
+  fileList.innerHTML = '';
+  selectedFiles.forEach((f, i) => {
+    const item = document.createElement('div');
+    item.className = 'file-item';
+    item.innerHTML = `
+      <span class="file-item-icon">${fileIcon(f.name)}</span>
+      <span class="file-item-name">${f.name}</span>
+      <span class="file-item-size">${formatBytes(f.size)}</span>
+      <button class="file-item-remove" data-idx="${i}">✕</button>
+    `;
+    fileList.appendChild(item);
+  });
+
+  fileList.querySelectorAll('.file-item-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedFiles.splice(+btn.dataset.idx, 1);
+      renderFileList();
+      sendBtn.disabled = !(dc && dc.readyState === 'open') || selectedFiles.length === 0;
+    });
+  });
 }
 
 // ─────────────────────────────────────────────
-// Send
+// Pause / Resume
+// ─────────────────────────────────────────────
+pauseBtn.addEventListener('click', () => {
+  sendPaused = !sendPaused;
+  pauseIcon.textContent = sendPaused ? '▶️' : '⏸';
+  showToast(sendPaused ? 'Пауза' : 'Продолжение...', 'info');
+});
+
+// ─────────────────────────────────────────────
+// Send Files
 // ─────────────────────────────────────────────
 sendBtn.addEventListener('click', async () => {
-  if (!selected || !dc || dc.readyState !== 'open') return;
+  if (!selectedFiles.length || !dc || dc.readyState !== 'open') return;
 
-  sendBtn.disabled = true;
-  progressBar.style.width = '0%';
-  downloadArea.innerHTML  = '';
+  sendBtn.disabled    = true;
+  pauseBtn.style.display = 'inline-flex';
+  sendPaused          = false;
+  sendCancelled       = false;
 
+  for (let fi = 0; fi < selectedFiles.length; fi++) {
+    if (sendCancelled) break;
+    await sendSingleFile(selectedFiles[fi]);
+  }
+
+  pauseBtn.style.display = 'none';
+  sendBtn.disabled       = false;
+});
+
+async function sendSingleFile(file) {
   const key         = await generateKey();
   const exportedKey = await exportKey(key);
-  const buffer      = await selected.arrayBuffer();
+  const buffer      = await file.arrayBuffer();
   const totalChunks = Math.ceil(buffer.byteLength / CHUNK_SIZE);
+
+  progressSection.style.display = 'block';
+  progressBar.style.width       = '0%';
+  downloadArea.innerHTML        = '';
 
   dc.send(JSON.stringify({
     type:   'file-meta',
-    name:   selected.name,
+    name:   file.name,
     size:   buffer.byteLength,
     chunks: totalChunks,
     key:    exportedKey
   }));
 
-  let chunkIndex = 0;
-  let offset     = 0;
+  let chunkIndex   = 0;
+  let offset       = 0;
+  lastOffset       = 0;
+  lastSpeedTime    = Date.now();
+  speedSamples     = [];
 
-  async function sendNextChunk() {
-    if (offset >= buffer.byteLength) {
-      dc.send(JSON.stringify({ type: 'file-end' }));
-      progressBar.style.width  = '100%';
-      transferInfo.textContent = `✅ Отправлено ${formatBytes(buffer.byteLength)}`;
-      sendBtn.disabled = false;
-      return;
+  await new Promise(resolve => {
+    async function sendNextChunk() {
+      if (sendCancelled) { resolve(); return; }
+
+      if (sendPaused) {
+        setTimeout(sendNextChunk, 200);
+        return;
+      }
+
+      if (offset >= buffer.byteLength) {
+        dc.send(JSON.stringify({ type: 'file-end', name: file.name }));
+        progressBar.style.width = '100%';
+        progressLabel.textContent = '100%';
+        transferInfo.textContent  = `${t('sent_ok')} ${formatBytes(buffer.byteLength)}`;
+        speedLabel.textContent    = '';
+        etaLabel.textContent      = '';
+        totalBytesTransferred    += buffer.byteLength;
+        totalTransEl.textContent  = formatBytes(totalBytesTransferred);
+        addHistory(file.name, file.size, 'sent', new Date().toLocaleTimeString());
+        showToast(`${t('sent_ok')}: ${file.name}`, 'success');
+        sendNotification('SecureShare', `${t('sent_ok')}: ${file.name}`);
+        resolve();
+        return;
+      }
+
+      if (dc.bufferedAmount > 4 * CHUNK_SIZE) {
+        setTimeout(sendNextChunk, 30);
+        return;
+      }
+
+      const slice     = buffer.slice(offset, offset + CHUNK_SIZE);
+      const encrypted = await encryptChunk(slice, key);
+      dc.send(encrypted);
+
+      offset     += CHUNK_SIZE;
+      chunkIndex += 1;
+
+      // Speed calc
+      const now      = Date.now();
+      const elapsed  = (now - lastSpeedTime) / 1000;
+      if (elapsed >= 0.5) {
+        const bytesDelta = offset - lastOffset;
+        const speed      = bytesDelta / elapsed;
+        speedSamples.push(speed);
+        if (speedSamples.length > 5) speedSamples.shift();
+        const avgSpeed    = speedSamples.reduce((a, b) => a + b, 0) / speedSamples.length;
+        const remaining   = buffer.byteLength - offset;
+        const etaSec      = avgSpeed > 0 ? remaining / avgSpeed : 0;
+        speedLabel.textContent = formatBytes(avgSpeed) + '/s';
+        etaLabel.textContent   = etaSec > 0 ? 'ETA: ' + formatTime(etaSec) : '';
+        lastOffset    = offset;
+        lastSpeedTime = now;
+      }
+
+      const pct = Math.min((offset / buffer.byteLength) * 100, 100);
+      progressBar.style.width = `${pct}%`;
+      progressLabel.textContent = Math.round(pct) + '%';
+      transferInfo.textContent  =
+        `📤 ${chunkIndex}/${totalChunks} ${t('chunk_progress')} · ${formatBytes(Math.min(offset, buffer.byteLength))} / ${formatBytes(buffer.byteLength)}`;
+
+      setTimeout(sendNextChunk, 0);
     }
 
-    if (dc.bufferedAmount > 4 * CHUNK_SIZE) {
-      setTimeout(sendNextChunk, 30);
-      return;
-    }
-
-    const slice     = buffer.slice(offset, offset + CHUNK_SIZE);
-    const encrypted = await encryptChunk(slice, key);
-    dc.send(encrypted);
-
-    offset     += CHUNK_SIZE;
-    chunkIndex += 1;
-
-    const pct = Math.min((offset / buffer.byteLength) * 100, 100);
-    progressBar.style.width  = `${pct}%`;
-    transferInfo.textContent =
-      `📤 ${chunkIndex}/${totalChunks} чанков (${formatBytes(Math.min(offset, buffer.byteLength))} / ${formatBytes(buffer.byteLength)})`;
-
-    setTimeout(sendNextChunk, 0);
-  }
-
-  sendNextChunk();
-});
+    sendNextChunk();
+  });
+}
 
 // ─────────────────────────────────────────────
 // Receive
 // ─────────────────────────────────────────────
 async function handleIncoming(data) {
   if (typeof data === 'string') {
-    const msg = JSON.parse(data);
+    let msg;
+    try { msg = JSON.parse(data); } catch { return; }
+
+    // Ping / Pong
+    if (msg.type === 'ping') {
+      dc.send(JSON.stringify({ type: 'pong', t: msg.t }));
+      return;
+    }
+    if (msg.type === 'pong') {
+      handlePong(Date.now() - msg.t);
+      return;
+    }
 
     if (msg.type === 'file-meta') {
       recvMeta             = msg;
       recvMeta.cryptoKey   = await importKey(msg.key);
       recvChunks           = [];
-      recvBytes            = 0;
-      progressBar.style.width  = '0%';
-      downloadArea.innerHTML   = '';
-      transferInfo.textContent = `📥 Получение: ${msg.name} (${formatBytes(msg.size)})`;
-      setStatus('📥 Получение файла…');
+      progressSection.style.display = 'block';
+      progressBar.style.width       = '0%';
+      downloadArea.innerHTML        = '';
+      autoDeleteRow.style.display   = 'none';
+      clearInterval(autoDeleteID);
+      transferInfo.textContent = `📥 ${msg.name} (${formatBytes(msg.size)})`;
+      setStatus(t('receiving'), 'connecting');
     }
 
     if (msg.type === 'file-end') {
@@ -364,20 +824,23 @@ async function handleIncoming(data) {
     return;
   }
 
+  // Binary chunk
   if (!recvMeta) return;
   const buf = (data instanceof ArrayBuffer) ? data : await data.arrayBuffer();
   recvChunks.push(buf);
-  recvBytes += buf.byteLength;
 
   const pct = Math.min((recvChunks.length / recvMeta.chunks) * 100, 99);
-  progressBar.style.width  = `${pct}%`;
-  transferInfo.textContent =
-    `📥 ${recvChunks.length}/${recvMeta.chunks} чанков получено`;
+  progressBar.style.width   = `${pct}%`;
+  progressLabel.textContent = Math.round(pct) + '%';
+  transferInfo.textContent  = `📥 ${recvChunks.length}/${recvMeta.chunks} ${t('chunk_progress')}`;
 }
 
+// ─────────────────────────────────────────────
+// Assemble & offer download
+// ─────────────────────────────────────────────
 async function assembleFile() {
-  setStatus('🔓 Расшифровка…');
-  transferInfo.textContent = 'Расшифровка чанков…';
+  setStatus(t('decrypting'), 'connecting');
+  transferInfo.textContent = t('decrypting_chunks');
 
   const decrypted = [];
   for (const buf of recvChunks) {
@@ -392,20 +855,89 @@ async function assembleFile() {
     offset += part.byteLength;
   }
 
-  const url = URL.createObjectURL(new Blob([merged]));
-  downloadArea.innerHTML = `
-    <a href="${url}" download="${recvMeta.name}" style="
-      display:inline-flex;align-items:center;gap:8px;
-      padding:12px 20px;background:#238636;
-      color:white;border-radius:10px;text-decoration:none;
-      margin-top:10px;font-weight:bold;
-    ">⬇ Download ${recvMeta.name} (${formatBytes(totalBytes)})</a>
-  `;
+  const blob     = new Blob([merged]);
+  const url      = URL.createObjectURL(blob);
+  const fileName = recvMeta.name;
 
-  transferInfo.textContent = `✅ Получено и расшифровано — ${formatBytes(totalBytes)}`;
-  setStatus('✅ Файл получен!');
+  const item = document.createElement('div');
+  item.className = 'download-item';
+
+  // Image preview
+  if (isImageFile(fileName)) {
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = fileName;
+    item.appendChild(img);
+  }
+
+  const link = document.createElement('a');
+  link.href      = url;
+  link.download  = fileName;
+  link.className = 'download-link';
+  link.innerHTML = `${t('download')} ${fileIcon(fileName)} ${fileName} (${formatBytes(totalBytes)})`;
+  item.appendChild(link);
+  downloadArea.appendChild(item);
+
+  totalBytesTransferred   += totalBytes;
+  totalTransEl.textContent = formatBytes(totalBytesTransferred);
+  transferInfo.textContent = `✅ ${formatBytes(totalBytes)}`;
+  progressLabel.textContent = '100%';
+  setStatus(t('file_received'), 'connected');
+
+  addHistory(fileName, totalBytes, 'received', new Date().toLocaleTimeString());
+  sendNotification('SecureShare P2P', `${t('file_received')} ${fileName}`);
+  showToast(`${t('file_received')} ${fileName}`, 'success');
+
+  // Auto-delete link after TTL
+  startAutoDelete(() => {
+    URL.revokeObjectURL(url);
+    item.remove();
+    showToast('🗑 Ссылка удалена', 'info');
+  });
 
   recvMeta   = null;
   recvChunks = [];
-  recvBytes  = 0;
 }
+
+// ─────────────────────────────────────────────
+// Theme
+// ─────────────────────────────────────────────
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  themeIcon.textContent = theme === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('theme', theme);
+}
+
+themeBtn.addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+});
+
+// Auto theme from system
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
+const savedTheme  = localStorage.getItem('theme');
+applyTheme(savedTheme || (prefersDark.matches ? 'dark' : 'light'));
+prefersDark.addEventListener('change', (e) => {
+  if (!localStorage.getItem('theme')) applyTheme(e.matches ? 'dark' : 'light');
+});
+
+// ─────────────────────────────────────────────
+// Language
+// ─────────────────────────────────────────────
+langBtn.addEventListener('click', () => {
+  lang = lang === 'ru' ? 'en' : 'ru';
+  langLabel.textContent = lang === 'ru' ? 'EN' : 'RU';
+  localStorage.setItem('lang', lang);
+  applyTranslations();
+});
+
+// Init lang
+lang = localStorage.getItem('lang') || 'ru';
+langLabel.textContent = lang === 'ru' ? 'EN' : 'RU';
+
+// ─────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────
+applyTranslations();
+startSessionTimer();
+setStatus(t('idle'));
