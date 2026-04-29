@@ -61,6 +61,7 @@ const TRANSLATIONS = {
     answer_link_label:  '🔗 Скопируйте ссылку-ответ и отправьте хосту:',
     answer_loaded:      '🔗 Ответ гостя загружен. Нажмите подтвердить.',
     host_session_missing: '⚠️ Откройте ссылку-ответ во вкладке хоста, где создана комната',
+    answer_sent_to_tab: '✅ Ответ отправлен в открытую вкладку хоста. Эту вкладку можно закрыть.',
   },
   en: {
     tagline:            'Encrypted browser-to-browser file transfer',
@@ -119,6 +120,7 @@ const TRANSLATIONS = {
     answer_link_label:  '🔗 Copy answer link and send it to host:',
     answer_loaded:      '🔗 Guest answer loaded. Press submit.',
     host_session_missing: '⚠️ Open the answer link in the host tab where the room was created',
+    answer_sent_to_tab: '✅ Answer sent to the open host tab. You can close this tab.',
   }
 };
 
@@ -195,6 +197,10 @@ let sendPaused     = false;
 let sendCancelled  = false;
 let sdpMode        = null;
 let offerPwdHash   = '';
+let shareChannel   = null;
+const SHARE_CHANNEL_NAME = 'secureshare-p2p-sdp';
+const SHARE_STORAGE_KEY  = 'secureshare-p2p-sdp-message';
+const handledShareMessages = new Set();
 
 // Stats
 let sessionStart   = Date.now();
@@ -326,6 +332,68 @@ function extractSharedSdp(text) {
   }
 
   return value;
+}
+
+function makeShareMessage(type, payload) {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    type,
+    payload,
+  };
+}
+
+function broadcastShareMessage(type, payload) {
+  const message = makeShareMessage(type, payload);
+
+  try {
+    shareChannel?.postMessage(message);
+  } catch {}
+
+  try {
+    localStorage.setItem(SHARE_STORAGE_KEY, JSON.stringify(message));
+  } catch {}
+}
+
+async function applyAnswerJson(answerJson) {
+  if (!pc || !isHost) {
+    showToast(t('host_session_missing'), 'error');
+    setStatus(t('host_session_missing'), 'failed');
+    return false;
+  }
+
+  let desc;
+  try { desc = JSON.parse(answerJson); }
+  catch { showToast(t('wrong_sdp'), 'error'); return false; }
+
+  await pc.setRemoteDescription(desc);
+  setStatus(t('connecting_state'), 'connecting');
+  sdpBox.style.display = 'none';
+  return true;
+}
+
+function handleShareMessage(message) {
+  if (!message || handledShareMessages.has(message.id)) return;
+  handledShareMessages.add(message.id);
+
+  if (message.type === 'answer' && pc && isHost) {
+    showSdp(t('paste_answer'), message.payload, 'paste-answer');
+    setStatus(t('answer_loaded'), 'connecting');
+    applyAnswerJson(message.payload).catch(err => {
+      showToast(t('sdp_error') + err.message, 'error');
+    });
+  }
+}
+
+function initCrossTabMessaging() {
+  if ('BroadcastChannel' in window) {
+    shareChannel = new BroadcastChannel(SHARE_CHANNEL_NAME);
+    shareChannel.addEventListener('message', e => handleShareMessage(e.data));
+  }
+
+  window.addEventListener('storage', e => {
+    if (e.key !== SHARE_STORAGE_KEY || !e.newValue) return;
+    try { handleShareMessage(JSON.parse(e.newValue)); } catch {}
+  });
 }
 
 // ─────────────────────────────────────────────
@@ -672,15 +740,7 @@ submitSdpBtn.addEventListener('click', async () => {
       await pc.setLocalDescription(answer);
       setStatus(t('gathering'), 'connecting');
     } else if (sdpMode === 'paste-answer') {
-      if (!pc) {
-        showToast(t('host_session_missing'), 'error');
-        setStatus(t('host_session_missing'), 'failed');
-        return;
-      }
-
-      await pc.setRemoteDescription(desc);
-      setStatus(t('connecting_state'), 'connecting');
-      sdpBox.style.display = 'none';
+      await applyAnswerJson(raw);
     }
   } catch (err) {
     showToast(t('sdp_error') + err.message, 'error');
@@ -729,15 +789,19 @@ function loadInviteFromUrl() {
 
     if (hash.startsWith('answer=')) {
       const answerJson = decodeSharePayload(hash.slice('answer='.length));
-      if (!pc || !isHost) {
+      if (pc && isHost) {
         showSdp(t('paste_answer'), answerJson, 'paste-answer');
-        setStatus(t('host_session_missing'), 'failed');
-        showToast(t('host_session_missing'), 'error', 6000);
+        setStatus(t('answer_loaded'), 'connecting');
+        applyAnswerJson(answerJson).catch(err => {
+          showToast(t('sdp_error') + err.message, 'error');
+        });
         return;
       }
 
+      broadcastShareMessage('answer', answerJson);
       showSdp(t('paste_answer'), answerJson, 'paste-answer');
-      setStatus(t('answer_loaded'), 'connecting');
+      setStatus(t('answer_sent_to_tab'), 'connected');
+      showToast(t('answer_sent_to_tab'), 'success', 6000);
     }
   } catch {
     showToast(t('wrong_sdp'), 'error');
@@ -1078,5 +1142,6 @@ langLabel.textContent = lang === 'ru' ? 'EN' : 'RU';
 applyTranslations();
 startSessionTimer();
 setStatus(t('idle'));
+initCrossTabMessaging();
 loadInviteFromUrl();
 window.addEventListener('hashchange', loadInviteFromUrl);
