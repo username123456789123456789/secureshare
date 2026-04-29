@@ -60,6 +60,7 @@ const TRANSLATIONS = {
     invite_loaded:      '🔗 Приглашение загружено. Введите пароль и подтвердите.',
     answer_link_label:  '🔗 Скопируйте ссылку-ответ и отправьте хосту:',
     answer_loaded:      '🔗 Ответ гостя загружен. Нажмите подтвердить.',
+    host_session_missing: '⚠️ Откройте ссылку-ответ во вкладке хоста, где создана комната',
   },
   en: {
     tagline:            'Encrypted browser-to-browser file transfer',
@@ -117,6 +118,7 @@ const TRANSLATIONS = {
     invite_loaded:      '🔗 Invite loaded. Enter password and submit.',
     answer_link_label:  '🔗 Copy answer link and send it to host:',
     answer_loaded:      '🔗 Guest answer loaded. Press submit.',
+    host_session_missing: '⚠️ Open the answer link in the host tab where the room was created',
   }
 };
 
@@ -670,6 +672,12 @@ submitSdpBtn.addEventListener('click', async () => {
       await pc.setLocalDescription(answer);
       setStatus(t('gathering'), 'connecting');
     } else if (sdpMode === 'paste-answer') {
+      if (!pc) {
+        showToast(t('host_session_missing'), 'error');
+        setStatus(t('host_session_missing'), 'failed');
+        return;
+      }
+
       await pc.setRemoteDescription(desc);
       setStatus(t('connecting_state'), 'connecting');
       sdpBox.style.display = 'none';
@@ -723,7 +731,8 @@ function loadInviteFromUrl() {
       const answerJson = decodeSharePayload(hash.slice('answer='.length));
       if (!pc || !isHost) {
         showSdp(t('paste_answer'), answerJson, 'paste-answer');
-        setStatus(t('answer_loaded'), 'connecting');
+        setStatus(t('host_session_missing'), 'failed');
+        showToast(t('host_session_missing'), 'error', 6000);
         return;
       }
 
