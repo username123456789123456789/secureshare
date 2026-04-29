@@ -1,68 +1,207 @@
-<!-- index.html -->
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SecureShare P2P</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
+
+  <!-- Favicon inline SVG -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔒</text></svg>">
+
+  <!-- QR Code library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
   <div class="app">
+
+    <!-- ── Top Bar ── -->
     <header class="topbar">
-      <h1>🔒 SecureShare P2P</h1>
-      <p>Encrypted browser-to-browser file transfer</p>
+      <div class="topbar-left">
+        <div class="logo">
+          <span class="logo-icon">⬡</span>
+          <div>
+            <h1>SecureShare</h1>
+            <p class="tagline" data-i18n="tagline">Зашифрованная P2P передача файлов</p>
+          </div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <!-- Language toggle -->
+        <button class="icon-btn" id="langBtn" title="Language">
+          <span id="langLabel">EN</span>
+        </button>
+        <!-- Theme toggle -->
+        <button class="icon-btn" id="themeBtn" title="Toggle theme">
+          <span id="themeIcon">☀️</span>
+        </button>
+      </div>
     </header>
 
+    <!-- ── Stats Bar ── -->
+    <div class="stats-bar">
+      <div class="stat-item">
+        <span class="stat-label" data-i18n="stat_session">Сессия</span>
+        <span class="stat-value" id="sessionTime">00:00</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label" data-i18n="stat_transferred">Передано</span>
+        <span class="stat-value" id="totalTransferred">0 B</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label" data-i18n="stat_ping">Пинг</span>
+        <span class="stat-value" id="pingValue">—</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label" data-i18n="stat_quality">Качество</span>
+        <span class="stat-value" id="connQuality">—</span>
+      </div>
+    </div>
+
     <main class="grid">
-      <!-- ── Connection card ── -->
-      <section class="card">
-        <h2>Connection</h2>
 
-        <div class="row">
-          <button id="createRoomBtn">Create Room (Host)</button>
-          <button id="joinRoomBtn">Join Room (Guest)</button>
-        </div>
-
-        <!-- SDP exchange area (shown when needed) -->
-        <div id="sdpBox" style="display:none">
-          <label id="sdpLabel" style="color:#8b949e; font-size:.85rem; display:block; margin-bottom:6px;"></label>
-          <textarea id="sdpOutput" rows="5" placeholder="SDP will appear here…" style="width:100%;background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:10px;padding:10px;resize:vertical;font-size:.8rem;"></textarea>
-          <div class="row" style="margin-top:10px; margin-bottom:0">
-            <button id="copySdpBtn">📋 Copy</button>
-            <button id="submitSdpBtn" id="submitSdpBtn">✅ Submit</button>
+      <!-- ── Connection Card ── -->
+      <section class="card" id="connectionCard">
+        <div class="card-header">
+          <h2 data-i18n="connection">Соединение</h2>
+          <div class="enc-badge">
+            <span>🔐</span>
+            <span data-i18n="aes256">AES-256</span>
           </div>
         </div>
 
-        <div class="status" style="margin-top:15px">
-          <span>Status:</span>
+        <!-- Password field -->
+        <div class="field-group">
+          <label class="field-label" data-i18n="password_label">Пароль (необязательно)</label>
+          <div class="input-row">
+            <input id="passwordInput" type="password" data-i18n-placeholder="password_placeholder" placeholder="Дополнительная защита" />
+            <button class="icon-btn" id="togglePwdBtn">👁</button>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button id="createRoomBtn" class="btn btn-primary">
+            <span>🏠</span>
+            <span data-i18n="create_room">Создать комнату</span>
+          </button>
+          <button id="joinRoomBtn" class="btn btn-secondary">
+            <span>🚪</span>
+            <span data-i18n="join_room">Войти</span>
+          </button>
+        </div>
+
+        <!-- SDP Exchange -->
+        <div id="sdpBox" style="display:none">
+          <label id="sdpLabel" class="field-label"></label>
+          <textarea id="sdpOutput" rows="5" placeholder="SDP…"></textarea>
+
+          <!-- QR Code -->
+          <div id="qrSection" style="display:none">
+            <p class="field-label" data-i18n="qr_hint">Гость сканирует QR вместо copy-paste:</p>
+            <div id="qrCode"></div>
+          </div>
+
+          <div class="btn-row" style="margin-top:10px">
+            <button class="btn btn-sm" id="copySdpBtn">📋 <span data-i18n="copy">Копировать</span></button>
+            <button class="btn btn-sm btn-primary" id="submitSdpBtn" style="display:none">✅ <span data-i18n="submit">Подтвердить</span></button>
+          </div>
+        </div>
+
+        <!-- Status -->
+        <div class="status-row">
+          <div class="status-dot" id="statusDot"></div>
+          <span data-i18n="status">Статус:</span>
           <strong id="statusText">Idle</strong>
+        </div>
+
+        <!-- Connection Timer -->
+        <div id="connTimerRow" style="display:none" class="conn-timer">
+          <span>⏱</span>
+          <span data-i18n="connected_for">Соединение:</span>
+          <strong id="connTimer">00:00</strong>
         </div>
       </section>
 
-      <!-- ── File Transfer card ── -->
-      <section class="card">
-        <h2>File Transfer</h2>
+      <!-- ── File Transfer Card ── -->
+      <section class="card" id="transferCard">
+        <div class="card-header">
+          <h2 data-i18n="file_transfer">Передача файлов</h2>
+          <label class="toggle-multi">
+            <input type="checkbox" id="multiToggle" />
+            <span data-i18n="multi">Несколько файлов</span>
+          </label>
+        </div>
 
+        <!-- Drop Zone -->
         <div id="dropZone" class="drop-zone">
-          📂 Drag & Drop File Here
+          <div class="drop-inner">
+            <div class="drop-icon">📂</div>
+            <p data-i18n="drop_text">Перетащите файл(ы) сюда</p>
+            <p class="drop-sub" data-i18n="drop_sub">или нажмите для выбора</p>
+          </div>
           <input type="file" id="fileInput" hidden />
         </div>
 
-        <div class="selected-file" id="selectedFile">No file selected</div>
+        <!-- Selected Files List -->
+        <div id="fileList" class="file-list"></div>
 
-        <button id="sendBtn" disabled>🔐 Send Encrypted File</button>
-
-        <div class="progress-wrap">
-          <div id="progressBar"></div>
+        <!-- Pause/Resume + Send -->
+        <div class="btn-row">
+          <button id="sendBtn" class="btn btn-primary" disabled>
+            <span>🔐</span>
+            <span data-i18n="send">Отправить зашифрованно</span>
+          </button>
+          <button id="pauseBtn" class="btn btn-sm" style="display:none">
+            <span id="pauseIcon">⏸</span>
+          </button>
         </div>
 
-        <div id="transferInfo" style="font-size:.8rem;color:#8b949e;margin-top:6px;"></div>
+        <!-- Progress -->
+        <div class="progress-section" id="progressSection" style="display:none">
+          <div class="progress-header">
+            <span id="progressLabel">0%</span>
+            <span id="speedLabel">—</span>
+            <span id="etaLabel">—</span>
+          </div>
+          <div class="progress-wrap">
+            <div id="progressBar">
+              <div class="progress-shine"></div>
+            </div>
+          </div>
+          <div id="transferInfo" class="transfer-info"></div>
+        </div>
 
+        <!-- Download Area -->
         <div id="downloadArea"></div>
+
+        <!-- Auto-delete timer -->
+        <div id="autoDeleteRow" style="display:none" class="auto-delete-row">
+          <span>🗑</span>
+          <span data-i18n="link_expires">Ссылка удалится через:</span>
+          <strong id="autoDeleteTimer">5:00</strong>
+        </div>
       </section>
+
     </main>
-  </div>
+
+    <!-- ── History Panel ── -->
+    <section class="card history-card">
+      <div class="card-header">
+        <h2 data-i18n="history">История передач</h2>
+        <button class="btn btn-sm" id="clearHistoryBtn" data-i18n="clear">Очистить</button>
+      </div>
+      <div id="historyList" class="history-list">
+        <p class="empty-hint" data-i18n="no_history">История пуста</p>
+      </div>
+    </section>
+
+  </div><!-- .app -->
+
+  <!-- ── Toast Notifications ── -->
+  <div id="toastContainer" class="toast-container"></div>
 
   <script src="app.js"></script>
 </body>
