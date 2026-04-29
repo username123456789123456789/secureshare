@@ -19,7 +19,11 @@ const TRANSLATIONS = {
     create_room:        'Создать комнату',
     join_room:          'Войти',
     copy:               'Копировать',
+    copied:             'Скопировано',
+    share:              'Поделиться',
     submit:             'Подтвердить',
+    reset:              'Сбросить',
+    new_room:           'Новая',
     status:             'Статус:',
     connected_for:      'Соединение:',
     multi:              'Несколько файлов',
@@ -62,6 +66,13 @@ const TRANSLATIONS = {
     answer_loaded:      '🔗 Ответ гостя загружен. Нажмите подтвердить.',
     host_session_missing: '⚠️ Откройте ссылку-ответ во вкладке хоста, где создана комната',
     answer_sent_to_tab: '✅ Ответ отправлен в открытую вкладку хоста. Эту вкладку можно закрыть.',
+    step_create:        'Шаг 1/3: отправьте ссылку гостю',
+    step_guest:         'Шаг 2/3: подтвердите приглашение',
+    step_answer:        'Шаг 3/3: отправьте ответ хосту',
+    step_host_answer:   'Шаг 3/3: подтвердите ответ гостя',
+    room_reset:         'Комната сброшена',
+    share_title:        'SecureShare P2P',
+    large_file_warn:    'Большие файлы могут передаваться медленно. Рекомендуется стабильный Wi-Fi.',
   },
   en: {
     tagline:            'Encrypted browser-to-browser file transfer',
@@ -78,7 +89,11 @@ const TRANSLATIONS = {
     create_room:        'Create Room',
     join_room:          'Join Room',
     copy:               'Copy',
+    copied:             'Copied',
+    share:              'Share',
     submit:             'Submit',
+    reset:              'Reset',
+    new_room:           'New',
     status:             'Status:',
     connected_for:      'Connected for:',
     multi:              'Multiple files',
@@ -121,6 +136,13 @@ const TRANSLATIONS = {
     answer_loaded:      '🔗 Guest answer loaded. Press submit.',
     host_session_missing: '⚠️ Open the answer link in the host tab where the room was created',
     answer_sent_to_tab: '✅ Answer sent to the open host tab. You can close this tab.',
+    step_create:        'Step 1/3: send the link to guest',
+    step_guest:         'Step 2/3: submit the invite',
+    step_answer:        'Step 3/3: send the answer to host',
+    step_host_answer:   'Step 3/3: submit guest answer',
+    room_reset:         'Room reset',
+    share_title:        'SecureShare P2P',
+    large_file_warn:    'Large files may transfer slowly. Stable Wi-Fi is recommended.',
   }
 };
 
@@ -145,13 +167,17 @@ function applyTranslations() {
 // ─────────────────────────────────────────────
 const createRoomBtn   = document.getElementById('createRoomBtn');
 const joinRoomBtn     = document.getElementById('joinRoomBtn');
+const resetRoomBtn    = document.getElementById('resetRoomBtn');
+const newRoomBtn      = document.getElementById('newRoomBtn');
 const statusText      = document.getElementById('statusText');
 const statusDot       = document.getElementById('statusDot');
 const sdpBox          = document.getElementById('sdpBox');
 const sdpLabel        = document.getElementById('sdpLabel');
 const sdpOutput       = document.getElementById('sdpOutput');
 const copySdpBtn      = document.getElementById('copySdpBtn');
+const shareSdpBtn     = document.getElementById('shareSdpBtn');
 const submitSdpBtn    = document.getElementById('submitSdpBtn');
+const stepText        = document.getElementById('stepText');
 const dropZone        = document.getElementById('dropZone');
 const fileInput       = document.getElementById('fileInput');
 const fileList        = document.getElementById('fileList');
@@ -183,6 +209,7 @@ const passwordInput   = document.getElementById('passwordInput');
 const togglePwdBtn    = document.getElementById('togglePwdBtn');
 const qrSection       = document.getElementById('qrSection');
 const qrCodeEl        = document.getElementById('qrCode');
+const fileWarn        = document.getElementById('fileWarn');
 
 // ─────────────────────────────────────────────
 // State
@@ -244,6 +271,7 @@ const RTC_CONFIG = {
 
 const CHUNK_SIZE    = 16 * 1024;
 const LINK_TTL_SEC  = 300; // 5 minutes
+const LARGE_FILE_WARN_BYTES = 100 * 1024 * 1024;
 
 // ─────────────────────────────────────────────
 // Utilities
@@ -251,6 +279,10 @@ const LINK_TTL_SEC  = 300; // 5 minutes
 function setStatus(msg, dotClass = '') {
   statusText.textContent = msg;
   statusDot.className    = 'status-dot ' + dotClass;
+}
+
+function setStep(key) {
+  if (stepText) stepText.textContent = t(key);
 }
 
 function formatBytes(b) {
@@ -699,22 +731,45 @@ function showSdp(label, value, mode) {
   sdpOutput.value      = value || '';
   sdpOutput.readOnly   = !!value;
   sdpBox.style.display = 'block';
+  sdpBox.classList.toggle('link-mode', /^(offer-ready|answer-ready)$/.test(mode));
+  shareSdpBtn.style.display =
+    (navigator.share && /^(offer-ready|answer-ready)$/.test(mode)) ? 'inline-flex' : 'none';
   submitSdpBtn.style.display =
     (mode === 'paste-offer' || mode === 'paste-answer') ? 'inline-flex' : 'none';
+
+  const stepByMode = {
+    'offer-ready': 'step_create',
+    'paste-offer': 'step_guest',
+    'answer-ready': 'step_answer',
+    'paste-answer': 'step_host_answer',
+  };
+  if (stepByMode[mode]) setStep(stepByMode[mode]);
 }
 
 copySdpBtn.addEventListener('click', async () => {
   if (!sdpOutput.value) return;
   await navigator.clipboard.writeText(sdpOutput.value);
-  copySdpBtn.querySelector('span:last-child').textContent = '✅';
+  copySdpBtn.querySelector('span:last-child').textContent = t('copied');
   setTimeout(() => copySdpBtn.querySelector('span:last-child').textContent = t('copy'), 2000);
-  showToast('SDP скопирован!', 'success');
+  showToast(t('copied'), 'success');
 
   if (sdpMode === 'offer-ready') {
     showSdp(t('paste_answer'), '', 'paste-answer');
     qrSection.style.display = 'none';
     setStatus(t('wait_answer'), 'connecting');
   }
+});
+
+shareSdpBtn.addEventListener('click', async () => {
+  if (!navigator.share || !sdpOutput.value) return;
+
+  try {
+    await navigator.share({
+      title: t('share_title'),
+      text: sdpLabel.textContent,
+      url: /^(offer-ready|answer-ready)$/.test(sdpMode) ? sdpOutput.value : undefined,
+    });
+  } catch {}
 });
 
 submitSdpBtn.addEventListener('click', async () => {
@@ -750,6 +805,38 @@ submitSdpBtn.addEventListener('click', async () => {
 // ─────────────────────────────────────────────
 // Create / Join
 // ─────────────────────────────────────────────
+function resetRoom(showMessage = true) {
+  if (pc) pc.close();
+  pc = null;
+  dc = null;
+  isHost = false;
+  recvMeta = null;
+  recvChunks = [];
+  sendPaused = false;
+  sendCancelled = false;
+  sdpMode = null;
+  offerPwdHash = '';
+
+  clearInterval(connTimerID);
+  clearInterval(pingTimerID);
+  connTimerRow.style.display = 'none';
+  sdpBox.style.display = 'none';
+  qrSection.style.display = 'none';
+  qrCodeEl.innerHTML = '';
+  sdpOutput.value = '';
+  progressSection.style.display = 'none';
+  progressBar.style.width = '0%';
+  progressLabel.textContent = '0%';
+  speedLabel.textContent = '—';
+  etaLabel.textContent = '—';
+  transferInfo.textContent = '';
+  sendBtn.disabled = true;
+  pauseBtn.style.display = 'none';
+  setStatus(t('idle'));
+
+  if (showMessage) showToast(t('room_reset'), 'info');
+}
+
 createRoomBtn.addEventListener('click', async () => {
   isHost = true;
   createPeerConnection();
@@ -771,6 +858,12 @@ joinRoomBtn.addEventListener('click', () => {
   offerPwdHash = '';
   createPeerConnection();
   showSdp(t('paste_offer'), '', 'paste-offer');
+});
+
+resetRoomBtn.addEventListener('click', () => resetRoom());
+newRoomBtn.addEventListener('click', () => {
+  resetRoom(false);
+  createRoomBtn.click();
 });
 
 function loadInviteFromUrl() {
@@ -841,7 +934,14 @@ function addFiles(files) {
     selectedFiles.push(f);
   });
   renderFileList();
+  updateFileWarning();
   sendBtn.disabled = !(dc && dc.readyState === 'open') || selectedFiles.length === 0;
+}
+
+function updateFileWarning() {
+  const hasLargeFile = selectedFiles.some(file => file.size >= LARGE_FILE_WARN_BYTES);
+  fileWarn.style.display = hasLargeFile ? 'block' : 'none';
+  fileWarn.textContent = hasLargeFile ? t('large_file_warn') : '';
 }
 
 function renderFileList() {
@@ -862,6 +962,7 @@ function renderFileList() {
     btn.addEventListener('click', () => {
       selectedFiles.splice(+btn.dataset.idx, 1);
       renderFileList();
+      updateFileWarning();
       sendBtn.disabled = !(dc && dc.readyState === 'open') || selectedFiles.length === 0;
     });
   });
@@ -1130,6 +1231,16 @@ langBtn.addEventListener('click', () => {
   langLabel.textContent = lang === 'ru' ? 'EN' : 'RU';
   localStorage.setItem('lang', lang);
   applyTranslations();
+  updateFileWarning();
+  if (sdpMode) {
+    const stepByMode = {
+      'offer-ready': 'step_create',
+      'paste-offer': 'step_guest',
+      'answer-ready': 'step_answer',
+      'paste-answer': 'step_host_answer',
+    };
+    if (stepByMode[sdpMode]) setStep(stepByMode[sdpMode]);
+  }
 });
 
 // Init lang
