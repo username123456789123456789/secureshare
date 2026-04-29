@@ -54,6 +54,8 @@ const TRANSLATIONS = {
     recv_badge:         'Получен',
     decrypting_chunks:  'Расшифровка чанков…',
     restarting_ice:     '🔄 Перезапуск ICE…',
+    wait_answer:        '⏳ Ожидание ANSWER от гостя…',
+    send_answer_wait:   '📤 Отправьте ANSWER хосту',
   },
   en: {
     tagline:            'Encrypted browser-to-browser file transfer',
@@ -105,6 +107,8 @@ const TRANSLATIONS = {
     recv_badge:         'Received',
     decrypting_chunks:  'Decrypting chunks…',
     restarting_ice:     '🔄 Restarting ICE…',
+    wait_answer:        '⏳ Waiting for guest ANSWER…',
+    send_answer_wait:   '📤 Send ANSWER to host',
   }
 };
 
@@ -494,6 +498,7 @@ function createPeerConnection() {
       showQR(sdp);
     } else {
       showSdp(t('answer_label'), sdp, 'answer-ready');
+      setStatus(t('send_answer_wait'), 'connecting');
     }
   };
 
@@ -509,8 +514,27 @@ function createPeerConnection() {
       startPingLoop();
       showToast(t('connected_state'), 'success');
     }
-    if (state === 'disconnected') { setStatus(t('disconnected_state'), ''); stopConnTimer(); }
+    if (state === 'disconnected') {
+      if (sdpMode === 'answer-ready') {
+        setStatus(t('send_answer_wait'), 'connecting');
+        return;
+      }
+      if (sdpMode === 'paste-answer') {
+        setStatus(t('wait_answer'), 'connecting');
+        return;
+      }
+      setStatus(t('disconnected_state'), '');
+      stopConnTimer();
+    }
     if (state === 'failed') {
+      if (sdpMode === 'answer-ready') {
+        setStatus(t('send_answer_wait'), 'connecting');
+        return;
+      }
+      if (sdpMode === 'paste-answer') {
+        setStatus(t('wait_answer'), 'connecting');
+        return;
+      }
       setStatus(t('failed_state'), 'failed');
       stopConnTimer();
       pc.restartIce();
@@ -558,6 +582,7 @@ copySdpBtn.addEventListener('click', async () => {
   if (sdpMode === 'offer-ready') {
     showSdp(t('paste_answer'), '', 'paste-answer');
     qrSection.style.display = 'none';
+    setStatus(t('wait_answer'), 'connecting');
   }
 });
 
