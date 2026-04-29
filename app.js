@@ -22,27 +22,39 @@ const downloadArea  = document.getElementById('downloadArea');
 // ─────────────────────────────────────────────
 // State
 // ─────────────────────────────────────────────
-let pc          = null;   // RTCPeerConnection
-let dc          = null;   // RTCDataChannel
-let isHost      = false;
-let selected    = null;   // File to send
-
-// Receive state
-let recvMeta    = null;   // { name, size, key }
-let recvChunks  = [];     // ArrayBuffer[]
-let recvBytes   = 0;
+let pc             = null;
+let dc             = null;
+let isHost         = false;
+let selected       = null;
+let recvMeta       = null;
+let recvChunks     = [];
+let recvBytes      = 0;
 
 // ─────────────────────────────────────────────
-// ICE servers (STUN — free, no server needed)
+// ICE Config — STUN + TURN (пробивает любой NAT)
 // ─────────────────────────────────────────────
 const RTC_CONFIG = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
+    { urls: 'stun:stun1.l.google.com:19302' },
+    {
+      urls:       'turn:openrelay.metered.ca:80',
+      username:   'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls:       'turn:openrelay.metered.ca:443',
+      username:   'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls:       'turn:openrelay.metered.ca:443?transport=tcp',
+      username:   'openrelayproject',
+      credential: 'openrelayproject'
+    }
   ]
 };
 
-// Chunk size — 16 KB is safe for WebRTC DataChannel
 const CHUNK_SIZE = 16 * 1024;
 
 // ─────────────────────────────────────────────
@@ -53,13 +65,13 @@ function setStatus(msg) {
 }
 
 function formatBytes(b) {
-  if (b < 1024) return b + ' B';
-  if (b < 1024 ** 2) return (b / 1024).toFixed(1) + ' KB';
+  if (b < 1024)       return b + ' B';
+  if (b < 1024 ** 2)  return (b / 1024).toFixed(1) + ' KB';
   return (b / 1024 ** 2).toFixed(2) + ' MB';
 }
 
 // ─────────────────────────────────────────────
-// AES-GCM helpers
+// AES-GCM
 // ─────────────────────────────────────────────
 async function generateKey() {
   return crypto.subtle.generateKey(
@@ -69,13 +81,11 @@ async function generateKey() {
   );
 }
 
-// Export CryptoKey → plain number array (for JSON transfer)
 async function exportKey(key) {
   const raw = await crypto.subtle.exportKey('raw', key);
   return Array.from(new Uint8Array(raw));
 }
 
-// Import number array → CryptoKey
 async function importKey(arr) {
   return crypto.subtle.importKey(
     'raw',
@@ -86,7 +96,6 @@ async function importKey(arr) {
   );
 }
 
-// Encrypt one chunk → ArrayBuffer with packed [IV (12 B) | ciphertext]
 async function encryptChunk(buffer, key) {
   const iv        = crypto.getRandomValues(new Uint8Array(12));
   const encrypted = await crypto.subtle.encrypt(
@@ -94,14 +103,12 @@ async function encryptChunk(buffer, key) {
     key,
     buffer
   );
-  // Pack IV + ciphertext into single buffer
   const out = new Uint8Array(12 + encrypted.byteLength);
   out.set(iv, 0);
   out.set(new Uint8Array(encrypted), 12);
   return out.buffer;
 }
 
-// Decrypt packed [IV | ciphertext] → ArrayBuffer
 async function decryptChunk(buffer, key) {
   const iv        = buffer.slice(0, 12);
   const encrypted = buffer.slice(12);
@@ -113,24 +120,17 @@ async function decryptChunk(buffer, key) {
 }
 
 // ─────────────────────────────────────────────
-// WebRTC — создание соединения
+// WebRTC
 // ─────────────────────────────────────────────
 function createPeerConnection() {
-  if (pc) {
-    pc.close();
-    dc = null;
-  }
+  if (pc) { pc.close(); dc = null; }
 
   pc = new RTCPeerConnection(RTC_CONFIG);
 
-  // Собираем ICE-кандидатов прямо в SDP (Trickle ICE отключён —
-  // ждём полного SDP перед показом пользователю)
   pc.onicecandidate = (e) => {
-    if (e.candidate) return; // ещё идёт сбор
+    if (e.candidate) return; // ждём конца сбора
 
-    // ICE сбор завершён — показываем финальный SDP
     const sdp = JSON.stringify(pc.localDescription);
-
     if (isHost) {
       showSdp('📋 Скопируйте OFFER и отправьте гостю:', sdp, 'offer-ready');
     } else {
@@ -138,66 +138,62 @@ function createPeerConnection() {
     }
   };
 
-  pc.onconnectionstatechange = () => {
-    const state = pc.connectionState;
+  pc.oniceconnectionstatechange = () => {
+    const state = pc.iceConnectionState;
     const labels = {
-      connecting:    '🔄 Connecting…',
-      connected:     '✅ Connected!',
-      disconnected:  '⚠️ Disconnected',
-      failed:        '❌ Connection failed',
-      closed:        '🔒 Closed'
+      checking:     '🔄 Проверка соединения…',
+      connected:    '✅ Connected!',
+      completed:    '✅ Connected!',
+      disconnected: '⚠️ Disconnected',
+      failed:       '❌ Connection failed — попробуйте снова',
+      closed:       '🔒 Closed'
     };
-    setStatus(labels[state] || state);
+    if (labels[state]) setStatus(labels[state]);
 
-    if (state === 'connected') {
+    if (state === 'connected' || state === 'completed') {
       sdpBox.style.display = 'none';
       sendBtn.disabled = !selected;
     }
+
+    // Автоперезапуск ICE при сбое
+    if (state === 'failed') {
+      pc.restartIce();
+      setStatus('🔄 Перезапуск ICE…');
+    }
   };
 
-  // Гость получает DataChannel от хоста
-  pc.ondatachannel = (e) => {
-    setupDataChannel(e.channel);
-  };
+  pc.ondatachannel = (e) => setupDataChannel(e.channel);
 }
 
-// ─────────────────────────────────────────────
-// DataChannel setup
-// ─────────────────────────────────────────────
 function setupDataChannel(channel) {
   dc = channel;
   dc.binaryType = 'arraybuffer';
 
   dc.onopen  = () => {
-    setStatus('✅ Connected! Ready to transfer.');
+    setStatus('✅ Connected! Готов к передаче.');
     sendBtn.disabled = !selected;
   };
-
   dc.onclose = () => {
-    setStatus('Connection closed');
+    setStatus('Соединение закрыто');
     sendBtn.disabled = true;
   };
-
-  dc.onerror = (e) => setStatus('❌ DataChannel error: ' + e.error?.message);
-
+  dc.onerror = (e) => setStatus('❌ Ошибка: ' + (e.error?.message || e));
   dc.onmessage = (e) => handleIncoming(e.data);
 }
 
 // ─────────────────────────────────────────────
-// SDP UI helpers
+// SDP UI
 // ─────────────────────────────────────────────
-// mode: 'offer-ready' | 'paste-answer' | 'answer-ready' | 'paste-offer'
 let sdpMode = null;
 
 function showSdp(label, value, mode) {
-  sdpMode            = mode;
+  sdpMode              = mode;
   sdpLabel.textContent = label;
-  sdpOutput.value    = value || '';
-  sdpOutput.readOnly = !!value;    // readonly когда показываем, редактируемый когда ждём вставки
+  sdpOutput.value      = value || '';
+  sdpOutput.readOnly   = !!value;
   sdpBox.style.display = 'block';
-
-  // Кнопка Submit нужна только когда пользователь вставляет SDP
-  submitSdpBtn.style.display = (mode === 'paste-offer' || mode === 'paste-answer') ? 'inline-block' : 'none';
+  submitSdpBtn.style.display =
+    (mode === 'paste-offer' || mode === 'paste-answer') ? 'inline-block' : 'none';
 }
 
 copySdpBtn.addEventListener('click', async () => {
@@ -206,11 +202,9 @@ copySdpBtn.addEventListener('click', async () => {
   copySdpBtn.textContent = '✅ Copied!';
   setTimeout(() => (copySdpBtn.textContent = '📋 Copy'), 2000);
 
-  // Хост после копирования Offer → ждёт Answer
   if (sdpMode === 'offer-ready') {
-    showSdp('📥 Вставьте ANSWER от гостя сюда:', '', 'paste-answer');
+    showSdp('📥 Вставьте ANSWER от гостя:', '', 'paste-answer');
   }
-  // Гость после копирования Answer — больше ничего не нужно делать
 });
 
 submitSdpBtn.addEventListener('click', async () => {
@@ -221,22 +215,19 @@ submitSdpBtn.addEventListener('click', async () => {
   try {
     desc = JSON.parse(raw);
   } catch {
-    alert('⚠️ Неверный формат SDP — вставьте текст целиком.');
+    alert('⚠️ Неверный формат — вставьте текст целиком.');
     return;
   }
 
   try {
     if (sdpMode === 'paste-offer') {
-      // Гость получил Offer → создаёт Answer
       await pc.setRemoteDescription(desc);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      // ICE сбор завершится → onicecandidate покажет Answer
-      setStatus('🔄 Gathering ICE…');
+      setStatus('🔄 Сбор ICE кандидатов…');
     } else if (sdpMode === 'paste-answer') {
-      // Хост получил Answer
       await pc.setRemoteDescription(desc);
-      setStatus('🔄 Establishing connection…');
+      setStatus('🔄 Установка соединения…');
       sdpBox.style.display = 'none';
     }
   } catch (err) {
@@ -245,30 +236,24 @@ submitSdpBtn.addEventListener('click', async () => {
 });
 
 // ─────────────────────────────────────────────
-// Create Room (Host)
+// Create / Join
 // ─────────────────────────────────────────────
 createRoomBtn.addEventListener('click', async () => {
   isHost = true;
   createPeerConnection();
 
-  // Хост создаёт DataChannel
   dc = pc.createDataChannel('file-transfer', { ordered: true });
   setupDataChannel(dc);
 
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
-
-  setStatus('🔄 Gathering ICE candidates…');
-  // onicecandidate покажет SDP когда сбор завершён
+  setStatus('🔄 Сбор ICE кандидатов…');
 });
 
-// ─────────────────────────────────────────────
-// Join Room (Guest)
-// ─────────────────────────────────────────────
 joinRoomBtn.addEventListener('click', () => {
   isHost = false;
   createPeerConnection();
-  showSdp('📥 Вставьте OFFER от хоста сюда:', '', 'paste-offer');
+  showSdp('📥 Вставьте OFFER от хоста:', '', 'paste-offer');
 });
 
 // ─────────────────────────────────────────────
@@ -297,7 +282,7 @@ function pickFile(file) {
 }
 
 // ─────────────────────────────────────────────
-// Send File
+// Send
 // ─────────────────────────────────────────────
 sendBtn.addEventListener('click', async () => {
   if (!selected || !dc || dc.readyState !== 'open') return;
@@ -306,13 +291,11 @@ sendBtn.addEventListener('click', async () => {
   progressBar.style.width = '0%';
   downloadArea.innerHTML  = '';
 
-  // 1. Generate key
-  const key        = await generateKey();
+  const key         = await generateKey();
   const exportedKey = await exportKey(key);
-  const buffer     = await selected.arrayBuffer();
+  const buffer      = await selected.arrayBuffer();
   const totalChunks = Math.ceil(buffer.byteLength / CHUNK_SIZE);
 
-  // 2. Send metadata + key
   dc.send(JSON.stringify({
     type:   'file-meta',
     name:   selected.name,
@@ -321,21 +304,18 @@ sendBtn.addEventListener('click', async () => {
     key:    exportedKey
   }));
 
-  // 3. Send encrypted chunks one by one
   let chunkIndex = 0;
   let offset     = 0;
 
   async function sendNextChunk() {
     if (offset >= buffer.byteLength) {
-      // All chunks sent
       dc.send(JSON.stringify({ type: 'file-end' }));
-      progressBar.style.width = '100%';
-      transferInfo.textContent = `✅ Sent ${formatBytes(buffer.byteLength)}`;
+      progressBar.style.width  = '100%';
+      transferInfo.textContent = `✅ Отправлено ${formatBytes(buffer.byteLength)}`;
       sendBtn.disabled = false;
       return;
     }
 
-    // Respect DataChannel buffer — avoid flooding
     if (dc.bufferedAmount > 4 * CHUNK_SIZE) {
       setTimeout(sendNextChunk, 30);
       return;
@@ -350,9 +330,9 @@ sendBtn.addEventListener('click', async () => {
 
     const pct = Math.min((offset / buffer.byteLength) * 100, 100);
     progressBar.style.width  = `${pct}%`;
-    transferInfo.textContent = `📤 Sending… ${chunkIndex}/${totalChunks} chunks (${formatBytes(Math.min(offset, buffer.byteLength))} / ${formatBytes(buffer.byteLength)})`;
+    transferInfo.textContent =
+      `📤 ${chunkIndex}/${totalChunks} чанков (${formatBytes(Math.min(offset, buffer.byteLength))} / ${formatBytes(buffer.byteLength)})`;
 
-    // Yield to keep UI responsive
     setTimeout(sendNextChunk, 0);
   }
 
@@ -360,63 +340,50 @@ sendBtn.addEventListener('click', async () => {
 });
 
 // ─────────────────────────────────────────────
-// Receive File
+// Receive
 // ─────────────────────────────────────────────
 async function handleIncoming(data) {
-  // JSON control messages
   if (typeof data === 'string') {
     const msg = JSON.parse(data);
 
     if (msg.type === 'file-meta') {
-      recvMeta   = msg;
-      recvChunks = [];
-      recvBytes  = 0;
+      recvMeta             = msg;
+      recvMeta.cryptoKey   = await importKey(msg.key);
+      recvChunks           = [];
+      recvBytes            = 0;
       progressBar.style.width  = '0%';
-      transferInfo.textContent = `📥 Receiving: ${msg.name} (${formatBytes(msg.size)})`;
       downloadArea.innerHTML   = '';
-
-      // Import decryption key
-      recvMeta.cryptoKey = await importKey(msg.key);
-      setStatus(`📥 Receiving file…`);
+      transferInfo.textContent = `📥 Получение: ${msg.name} (${formatBytes(msg.size)})`;
+      setStatus('📥 Получение файла…');
     }
 
     if (msg.type === 'file-end') {
       progressBar.style.width = '100%';
       await assembleFile();
     }
-
     return;
   }
 
-  // Binary chunk
   if (!recvMeta) return;
-
   const buf = (data instanceof ArrayBuffer) ? data : await data.arrayBuffer();
   recvChunks.push(buf);
   recvBytes += buf.byteLength;
 
-  // Update progress using original file size (before encryption overhead)
-  const totalChunks = recvMeta.chunks;
-  const pct = Math.min((recvChunks.length / totalChunks) * 100, 99);
+  const pct = Math.min((recvChunks.length / recvMeta.chunks) * 100, 99);
   progressBar.style.width  = `${pct}%`;
-  transferInfo.textContent = `📥 ${recvChunks.length}/${totalChunks} chunks received`;
+  transferInfo.textContent =
+    `📥 ${recvChunks.length}/${recvMeta.chunks} чанков получено`;
 }
 
-// ─────────────────────────────────────────────
-// Assemble & offer download
-// ─────────────────────────────────────────────
 async function assembleFile() {
-  setStatus('🔓 Decrypting…');
-  transferInfo.textContent = 'Decrypting chunks…';
+  setStatus('🔓 Расшифровка…');
+  transferInfo.textContent = 'Расшифровка чанков…';
 
-  // Decrypt all chunks sequentially
   const decrypted = [];
   for (const buf of recvChunks) {
-    const plain = await decryptChunk(buf, recvMeta.cryptoKey);
-    decrypted.push(plain);
+    decrypted.push(await decryptChunk(buf, recvMeta.cryptoKey));
   }
 
-  // Merge into single Uint8Array
   const totalBytes = decrypted.reduce((s, b) => s + b.byteLength, 0);
   const merged     = new Uint8Array(totalBytes);
   let offset = 0;
@@ -425,10 +392,7 @@ async function assembleFile() {
     offset += part.byteLength;
   }
 
-  // Create download link
-  const blob = new Blob([merged]);
-  const url  = URL.createObjectURL(blob);
-
+  const url = URL.createObjectURL(new Blob([merged]));
   downloadArea.innerHTML = `
     <a href="${url}" download="${recvMeta.name}" style="
       display:inline-flex;align-items:center;gap:8px;
@@ -438,10 +402,9 @@ async function assembleFile() {
     ">⬇ Download ${recvMeta.name} (${formatBytes(totalBytes)})</a>
   `;
 
-  transferInfo.textContent = `✅ Received & decrypted — ${formatBytes(totalBytes)}`;
-  setStatus('✅ File received!');
+  transferInfo.textContent = `✅ Получено и расшифровано — ${formatBytes(totalBytes)}`;
+  setStatus('✅ Файл получен!');
 
-  // Cleanup
   recvMeta   = null;
   recvChunks = [];
   recvBytes  = 0;
