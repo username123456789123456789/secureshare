@@ -484,7 +484,7 @@ function createPeerConnection() {
           sdp:  pc.localDescription?.sdp,
         };
 
-    if (isHost && offerPwdHash) {
+    if (isHost) {
       localDesc.pwdHash = offerPwdHash;
     }
 
