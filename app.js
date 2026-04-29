@@ -180,6 +180,7 @@ let recvChunks     = [];
 let sendPaused     = false;
 let sendCancelled  = false;
 let sdpMode        = null;
+let offerPwdHash   = '';
 
 // Stats
 let sessionStart   = Date.now();
@@ -476,7 +477,18 @@ function createPeerConnection() {
 
   pc.onicecandidate = (e) => {
     if (e.candidate) return;
-    const sdp = JSON.stringify(pc.localDescription);
+    const localDesc = pc.localDescription?.toJSON
+      ? pc.localDescription.toJSON()
+      : {
+          type: pc.localDescription?.type,
+          sdp:  pc.localDescription?.sdp,
+        };
+
+    if (isHost && offerPwdHash) {
+      localDesc.pwdHash = offerPwdHash;
+    }
+
+    const sdp = JSON.stringify(localDesc);
     if (isHost) {
       showSdp(t('offer_label'), sdp, 'offer-ready');
       showQR(sdp);
@@ -559,14 +571,14 @@ submitSdpBtn.addEventListener('click', async () => {
 
   try {
     if (sdpMode === 'paste-offer') {
-      await pc.setRemoteDescription(desc);
-
       // Password verification if set
       const pwdHash = passwordInput.value ? await hashPassword(passwordInput.value) : '';
       if (desc.pwdHash && desc.pwdHash !== pwdHash) {
         showToast(t('wrong_password'), 'error');
         return;
       }
+
+      await pc.setRemoteDescription(desc);
 
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -594,8 +606,7 @@ createRoomBtn.addEventListener('click', async () => {
   const offer = await pc.createOffer();
 
   // Embed password hash into SDP if set
-  const pwdHash = passwordInput.value ? await hashPassword(passwordInput.value) : '';
-  const sdpWithPwd = { ...offer, pwdHash };
+  offerPwdHash = passwordInput.value ? await hashPassword(passwordInput.value) : '';
 
   await pc.setLocalDescription(offer);
   setStatus(t('gathering'), 'connecting');
@@ -603,6 +614,7 @@ createRoomBtn.addEventListener('click', async () => {
 
 joinRoomBtn.addEventListener('click', () => {
   isHost = false;
+  offerPwdHash = '';
   createPeerConnection();
   showSdp(t('paste_offer'), '', 'paste-offer');
 });
