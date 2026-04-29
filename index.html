@@ -1,0 +1,69 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SecureShare P2P</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <h1>🔒 SecureShare P2P</h1>
+      <p>Encrypted browser-to-browser file transfer</p>
+    </header>
+
+    <main class="grid">
+      <!-- ── Connection card ── -->
+      <section class="card">
+        <h2>Connection</h2>
+
+        <div class="row">
+          <button id="createRoomBtn">Create Room (Host)</button>
+          <button id="joinRoomBtn">Join Room (Guest)</button>
+        </div>
+
+        <!-- SDP exchange area (shown when needed) -->
+        <div id="sdpBox" style="display:none">
+          <label id="sdpLabel" style="color:#8b949e; font-size:.85rem; display:block; margin-bottom:6px;"></label>
+          <textarea id="sdpOutput" rows="5" placeholder="SDP will appear here…" style="width:100%;background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:10px;padding:10px;resize:vertical;font-size:.8rem;"></textarea>
+          <div class="row" style="margin-top:10px; margin-bottom:0">
+            <button id="copySdpBtn">📋 Copy</button>
+            <button id="submitSdpBtn" id="submitSdpBtn">✅ Submit</button>
+          </div>
+        </div>
+
+        <div class="status" style="margin-top:15px">
+          <span>Status:</span>
+          <strong id="statusText">Idle</strong>
+        </div>
+      </section>
+
+      <!-- ── File Transfer card ── -->
+      <section class="card">
+        <h2>File Transfer</h2>
+
+        <div id="dropZone" class="drop-zone">
+          📂 Drag & Drop File Here
+          <input type="file" id="fileInput" hidden />
+        </div>
+
+        <div class="selected-file" id="selectedFile">No file selected</div>
+
+        <button id="sendBtn" disabled>🔐 Send Encrypted File</button>
+
+        <div class="progress-wrap">
+          <div id="progressBar"></div>
+        </div>
+
+        <div id="transferInfo" style="font-size:.8rem;color:#8b949e;margin-top:6px;"></div>
+
+        <div id="downloadArea"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

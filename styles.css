@@ -1,0 +1,134 @@
+/* styles.css */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: Arial, sans-serif;
+}
+
+body {
+  background: #0d1117;
+  color: #e6edf3;
+  min-height: 100vh;
+}
+
+.app {
+  max-width: 1100px;
+  margin: auto;
+  padding: 30px;
+}
+
+.topbar {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.topbar h1 {
+  font-size: 2.5rem;
+  color: #58a6ff;
+}
+
+.topbar p {
+  color: #8b949e;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  padding: 25px;
+  border-radius: 16px;
+}
+
+.card h2 {
+  margin-bottom: 20px;
+  color: #58a6ff;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+button {
+  background: #238636;
+  color: white;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+button:hover {
+  opacity: 0.85;
+}
+
+button:disabled {
+  background: #444;
+  cursor: not-allowed;
+}
+
+.room-box {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+input {
+  flex: 1;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #30363d;
+  background: #0d1117;
+  color: white;
+}
+
+.status {
+  margin-top: 10px;
+  color: #8b949e;
+}
+
+.drop-zone {
+  border: 2px dashed #58a6ff;
+  padding: 40px;
+  text-align: center;
+  border-radius: 12px;
+  cursor: pointer;
+  margin-bottom: 15px;
+}
+
+.drop-zone.dragover {
+  background: rgba(88, 166, 255, 0.1);
+}
+
+.selected-file {
+  margin-bottom: 15px;
+  color: #8b949e;
+}
+
+.progress-wrap {
+  width: 100%;
+  height: 14px;
+  background: #21262d;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 20px;
+}
+
+#progressBar {
+  width: 0%;
+  height: 100%;
+  background: #58a6ff;
+  transition: width 0.2s;
+}
+
+#downloadArea {
+  margin-top: 20px;
+}
